@@ -1,0 +1,44 @@
+[
+  {
+    "name": "RBI MPC Rate Decision",
+    "dates": ["2024-10-09", "2024-12-06", "2025-02-07", "2025-04-09", "2025-06-06", "2025-08-06", "2025-10-08"],
+    "time_ist": "10:00 AM IST",
+    "note": "Rate-sensitive sectors (Banks, NBFCs, Real Estate) may see pre-event volatility."
+  },
+  {
+    "name": "US Federal Reserve FOMC Decision",
+    "dates": ["2024-11-07", "2024-12-18", "2025-01-29", "2025-03-19", "2025-05-07", "2025-06-18", "2025-07-30", "2025-09-17", "2025-10-29", "2025-12-10"],
+    "time_ist": "11:30 PM IST",
+    "note": "FII flows into India often shift sharply post-Fed decisions."
+  },
+  {
+    "name": "US Non-Farm Payrolls",
+    "dates": ["2024-11-01", "2024-12-06", "2025-01-10", "2025-02-07", "2025-03-07", "2025-04-04", "2025-05-02", "2025-06-06", "2025-07-03", "2025-08-01", "2025-09-05", "2025-10-03", "2025-11-07", "2025-12-05"],
+    "time_ist": "6:00 PM IST",
+    "note": "Strong jobs data may dampen Fed rate cut expectations."
+  },
+  {
+    "name": "India CPI Inflation Data",
+    "dates": ["2024-11-12", "2024-12-12", "2025-01-13", "2025-02-12", "2025-03-12", "2025-04-14", "2025-05-13", "2025-06-12", "2025-07-14", "2025-08-12", "2025-09-12", "2025-10-13", "2025-11-12", "2025-12-12"],
+    "time_ist": "5:30 PM IST",
+    "note": "High CPI reduces likelihood of RBI rate cuts."
+  },
+  {
+    "name": "India GDP Data",
+    "dates": ["2024-11-29", "2025-02-28", "2025-05-30", "2025-08-29"],
+    "time_ist": "5:30 PM IST",
+    "note": "GDP growth trajectory impacts market sentiment broadly."
+  },
+  {
+    "name": "Union Budget",
+    "dates": ["2025-02-01"],
+    "time_ist": "11:00 AM IST",
+    "note": "High market volatility expected. Review all positions."
+  },
+  {
+    "name": "US CPI Inflation Data",
+    "dates": ["2024-11-13", "2024-12-11", "2025-01-15", "2025-02-12", "2025-03-12", "2025-04-10", "2025-05-13", "2025-06-11", "2025-07-15", "2025-08-13", "2025-09-10", "2025-10-15", "2025-11-12", "2025-12-10"],
+    "time_ist": "6:00 PM IST",
+    "note": "US inflation data directly influences Fed policy and global risk appetite."
+  }
+]
