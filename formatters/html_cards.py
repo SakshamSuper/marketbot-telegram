@@ -1,38 +1,28 @@
 """
 formatters/html_cards.py
 ─────────────────────────
-Builds all Telegram HTML-formatted message cards.
-Uses Telegram's supported HTML tags: <b>, <i>, <code>, <pre>
-Never uses unsupported tags — Telegram will silently drop them.
-
-All builders are pure functions → easy to unit-test.
+Gorgeously formatted Telegram HTML message cards.
+Optimized for mobile readability across iOS & Android screens:
+- Proportional bullet layout (never jagged fixed-width columns)
+- Distinct badge codes: <code>▲ +1.20%</code>
+- Clean dividers & emoji headers
+- Pure functions, robust against missing or partial data
 """
 
 from datetime import datetime
 import pytz
 
 IST = pytz.timezone("Asia/Kolkata")
-
-LINE = "━" * 30
-THIN = "─" * 30
+DIVIDER = "━━━━━━━━━━━━━━━━━━━━"
 
 
-def _now_ist(fmt: str = "%a, %d %b  %I:%M %p IST") -> str:
+def _now_ist(fmt: str = "%a, %d %b %Y | %I:%M %p IST") -> str:
     return datetime.now(IST).strftime(fmt)
 
 
-def _pct_str(pct: float, arrow: str = "") -> str:
+def _fmt_pct(pct: float, arrow: str = "") -> str:
     sign = "+" if pct >= 0 else ""
     return f"{arrow} {sign}{pct:.2f}%".strip()
-
-
-def _price_line(label: str, data: dict | None, currency: str = "") -> str:
-    if not data:
-        return f"  {label:<18} <i>unavailable</i>"
-    cur = currency or data.get("currency", "")
-    price = f"{cur}{data['price']:,.2f}"
-    pct   = _pct_str(data["change_pct"], data["arrow"])
-    return f"  <b>{label:<14}</b>  {price}  <i>{pct}</i>"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -40,92 +30,91 @@ def _price_line(label: str, data: dict | None, currency: str = "") -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_premarket_card(
-    indices:     dict,
-    crypto:      list[dict],
+    indices: dict,
+    crypto: list[dict],
     commodities: dict,
-    currency:    dict,
-    articles:    list[dict],     # [{"source", "title", "sentiment": {...}}]
-    ai_summary:  str,
-    ai_mood:     dict,           # {"emoji", "label", "reason"}
-    macro_events: list[dict],    # upcoming events today
+    currency: dict,
+    articles: list[dict],
+    ai_summary: str,
+    ai_mood: dict,
+    macro_events: list[dict],
 ) -> str:
-    now = _now_ist("%a, %d %b %Y")
+    now = _now_ist("%a, %d %b %Y • 8:00 AM IST")
     lines = [
-        f"{LINE}",
-        f"📊 <b>PRE-MARKET DIGEST</b>  |  {now}",
-        f"{LINE}",
+        f"📊 <b>PRE-MARKET INTELLIGENCE</b>",
+        f"📅 <i>{now}</i>",
+        DIVIDER,
     ]
 
-    # Indices
-    lines.append("\n🇮🇳 <b>INDIA INDICES</b> <i>(prev close)</i>")
-    for label in ("Nifty 50", "Sensex", "India VIX"):
-        d = indices.get(label)
-        lines.append(_price_line(label, d))
+    # Indian Indices
+    lines.append("\n🇮🇳 <b>Indian Indices (Prev Close)</b>")
+    for key, name in [("Nifty 50", "Nifty 50"), ("Sensex", "Sensex"), ("India VIX", "India VIX")]:
+        d = indices.get(key)
+        if d:
+            cur = "" if "VIX" in key else "₹"
+            lines.append(f"• <b>{name}:</b> {cur}{d['price']:,.2f} <code>{_fmt_pct(d['change_pct'], d['arrow'])}</code>")
+        else:
+            lines.append(f"• <b>{name}:</b> <i>unavailable</i>")
 
-    lines.append("\n🇺🇸 <b>US FUTURES</b>")
-    for label in ("S&P Fut", "Dow Fut", "Nasdaq Fut"):
-        d = indices.get(label)
-        lines.append(_price_line(label, d, "$"))
+    # US Futures
+    lines.append("\n🇺🇸 <b>Global & US Futures</b>")
+    for key, name in [("S&P Fut", "S&P 500 Fut"), ("Nasdaq Fut", "Nasdaq Fut"), ("Dow Fut", "Dow Jones Fut")]:
+        d = indices.get(key)
+        if d:
+            lines.append(f"• <b>{name}:</b> ${d['price']:,.2f} <code>{_fmt_pct(d['change_pct'], d['arrow'])}</code>")
+
+    # Commodities & Forex
+    c_gold = commodities.get("Gold")
+    c_silver = commodities.get("Silver")
+    c_crude = commodities.get("Crude")
+    c_usd = currency.get("USD/INR")
+
+    lines.append("\n🥇 <b>Commodities & Currency</b>")
+    if c_gold:
+        lines.append(f"• <b>MCX Gold (10g):</b> {c_gold.get('inr_display','')} <code>{_fmt_pct(c_gold['change_pct'], c_gold['arrow'])}</code>")
+    if c_silver:
+        lines.append(f"• <b>Silver (1kg):</b> {c_silver.get('inr_display','')} <code>{_fmt_pct(c_silver['change_pct'], c_silver['arrow'])}</code>")
+    if c_crude:
+        lines.append(f"• <b>Brent Crude:</b> ${c_crude['usd']:.2f}/bbl <code>{_fmt_pct(c_crude['change_pct'], c_crude['arrow'])}</code>")
+    if c_usd:
+        lines.append(f"• <b>USD/INR:</b> ₹{c_usd['rate']:.2f} <code>{_fmt_pct(c_usd['change_pct'], c_usd['arrow'])}</code>")
 
     # Crypto
     if crypto:
-        lines.append("\n🪙 <b>CRYPTO</b> <i>(24h change)</i>")
-        for c in crypto[:3]:
-            inr   = c.get("inr_fmt", f"₹{c['inr']:,.0f}")
-            pct   = _pct_str(c["change_pct"], c["arrow"])
-            lines.append(f"  <b>{c['symbol']:<6}</b>  {inr}  <i>{pct}</i>")
+        lines.append("\n🪙 <b>Crypto Highlights (24h)</b>")
+        for c in crypto[:2]:
+            inr = c.get("inr_fmt", f"₹{c['inr']:,.0f}")
+            lines.append(f"• <b>{c['symbol']}:</b> {inr} (${c['usd']:,.0f}) <code>{_fmt_pct(c['change_pct'], c['arrow'])}</code>")
 
-    # Commodities
-    c_gold   = commodities.get("Gold")
-    c_silver = commodities.get("Silver")
-    c_crude  = commodities.get("Crude")
-    if any([c_gold, c_silver, c_crude]):
-        lines.append("\n🥇 <b>COMMODITIES</b>")
-        if c_gold:
-            lines.append(f"  <b>Gold  </b>  {c_gold.get('inr_display', '')}  "
-                         f"<i>{_pct_str(c_gold['change_pct'], c_gold['arrow'])}</i>")
-        if c_silver:
-            lines.append(f"  <b>Silver</b>  {c_silver.get('inr_display', '')}  "
-                         f"<i>{_pct_str(c_silver['change_pct'], c_silver['arrow'])}</i>")
-        if c_crude:
-            lines.append(f"  <b>Crude </b>  ${c_crude['usd']:.2f}/bbl  "
-                         f"<i>{_pct_str(c_crude['change_pct'], c_crude['arrow'])}</i>")
-
-    # Currency
-    usd_inr = currency.get("USD/INR")
-    if usd_inr:
-        lines.append(f"\n💱  <b>USD/INR</b>  {usd_inr['rate']:.2f}  "
-                     f"<i>{_pct_str(usd_inr['change_pct'], usd_inr['arrow'])}</i>")
-
-    # Macro events today
+    # Macro calendar
     if macro_events:
-        lines.append("\n🏛️ <b>TODAY'S EVENTS</b>")
-        for e in macro_events:
-            lines.append(f"  ⚠️  {e['name']}  <i>{e.get('time_ist','')}</i>")
+        lines.append("\n🏛️ <b>Key Macro Events Today</b>")
+        for e in macro_events[:2]:
+            lines.append(f"⚠️ <b>{e['name']}</b> ({e.get('time_ist','')})\n   <i>{e.get('note','')}</i>")
 
-    # AI Mood
+    # AI Sentiment & Mood
     if ai_mood:
-        lines.append(
-            f"\n🤖 <b>AI MOOD</b>  {ai_mood['emoji']} <b>{ai_mood['label']}</b>\n"
-            f"<i>{ai_mood.get('reason', '')}</i>"
-        )
+        lines.append(f"\n🧠 <b>AI Market Mood:</b> {ai_mood.get('emoji','🟡')} <b>{ai_mood.get('label','Neutral')}</b>")
+        if ai_mood.get("reason"):
+            lines.append(f"<i>\"{ai_mood['reason']}\"</i>")
 
-    # AI News Summary
+    # AI Brief
     if ai_summary:
-        lines.append(f"\n📋 <b>AI MARKET BRIEF</b>\n<i>{ai_summary}</i>")
+        lines.append(f"\n📋 <b>Executive Summary</b>\n{ai_summary}")
 
-    # Top Headlines with sentiment
+    # Top Headlines
     if articles:
-        lines.append(f"\n📰 <b>TOP HEADLINES</b>")
-        for art in articles[:5]:
-            s    = art.get("sentiment", {})
+        lines.append("\n📰 <b>Top Market News (ET • Moneycontrol • Mint)</b>")
+        for a in articles[:4]:
+            s = a.get("sentiment", {})
             emoji = s.get("emoji", "🟡")
-            conf  = " <i>(uncertain)</i>" if s.get("confidence") == "LOW" else ""
-            src   = art.get("source", "")
-            title = art.get("title", "")[:80]
-            lines.append(f"  {emoji} <i>[{src}]</i> {title}{conf}")
+            src = a.get("source", "")
+            title = a.get("title", "")
+            if len(title) > 95:
+                title = title[:92] + "..."
+            lines.append(f"{emoji} <b>[{src}]</b> {title}")
 
-    lines.append(f"\n{LINE}")
+    lines.append(f"\n{DIVIDER}")
     return "\n".join(lines)
 
 
@@ -133,39 +122,34 @@ def build_premarket_card(
 # 2. Market Open Flash (9:15 AM)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def build_market_open_card(
-    indices:     dict,
-    top_movers:  list[dict],   # [{"symbol", "change_pct", "arrow"}]
-    ai_comment:  str,
-) -> str:
+def build_market_open_card(indices: dict, top_movers: list[dict], ai_comment: str) -> str:
     now = _now_ist("%I:%M %p IST")
     lines = [
-        f"{LINE}",
-        f"📈 <b>MARKET OPEN FLASH</b>  |  {now}",
-        f"{LINE}",
+        f"🔔 <b>MARKET OPEN FLASH</b>",
+        f"📅 <i>{now}</i>",
+        DIVIDER,
+        "\n🇮🇳 <b>Opening Pulse</b>",
     ]
 
-    lines.append("\n🇮🇳 <b>OPENING SNAPSHOT</b>")
     for label in ("Nifty 50", "Sensex"):
         d = indices.get(label)
         if d:
             gap = "Gap Up 🟢" if d["change_pct"] > 0.1 else ("Gap Down 🔴" if d["change_pct"] < -0.1 else "Flat 🟡")
-            lines.append(f"  <b>{label:<12}</b>  {d['price']:,.2f}  "
-                         f"<i>{_pct_str(d['change_pct'], d['arrow'])}  ({gap})</i>")
+            lines.append(f"• <b>{label}:</b> ₹{d['price']:,.2f} <code>{_fmt_pct(d['change_pct'], d['arrow'])}</code> ({gap})")
 
     if top_movers:
-        lines.append("\n🔥 <b>TOP MOVERS</b>")
+        lines.append("\n🔥 <b>Watchlist Movers at Open</b>")
         for m in top_movers[:5]:
             pct = m.get("change_pct", 0)
-            sym = m.get("symbol", "")
+            sym = m.get("symbol", "").replace(".NS", "").replace(".BO", "")
             arrow = "▲" if pct >= 0 else "▼"
-            flag = "  ⚡" if abs(pct) > 3 else ""
-            lines.append(f"  {arrow} <b>{sym}</b>  <i>{pct:+.1f}%</i>{flag}")
+            cur = m.get("currency", "₹")
+            lines.append(f"• <b>{sym}:</b> {cur}{m.get('price',0):,.2f} <code>{arrow} {pct:+.2f}%</code>")
 
     if ai_comment:
-        lines.append(f"\n💬 <i>{ai_comment}</i>")
+        lines.append(f"\n🤖 <b>Opening Analysis:</b>\n<i>{ai_comment}</i>")
 
-    lines.append(f"\n{LINE}")
+    lines.append(f"\n{DIVIDER}")
     return "\n".join(lines)
 
 
@@ -174,65 +158,62 @@ def build_market_open_card(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_alert_card(
-    symbol:      str,
-    price:       float,
-    change_pct:  float,
-    currency:    str,
-    ai_reason:   str,
-    sentiment:   dict,          # from sentiment.analyse()
-    threshold:   float = 2.0,
+    symbol: str,
+    price: float,
+    change_pct: float,
+    currency: str,
+    ai_reason: str,
+    sentiment: dict,
+    threshold: float = 2.0,
 ) -> str:
-    now   = _now_ist("%I:%M %p IST")
+    now = _now_ist("%I:%M %p IST")
     arrow = "▲" if change_pct >= 0 else "▼"
-    direction = "📈" if change_pct >= 0 else "📉"
+    dir_emoji = "🟢 SURGE" if change_pct >= 0 else "🔴 DROP"
     s_emoji = sentiment.get("emoji", "🟡")
-    conf = sentiment.get("confidence", "")
-    conf_note = "  <i>(low confidence)</i>" if conf == "LOW" else ""
+    s_label = sentiment.get("label", "Neutral")
+    sym_clean = symbol.replace(".NS", "").replace(".BO", "")
 
     lines = [
-        f"{LINE}",
-        f"⚡ <b>SMART ALERT</b>  |  {now}",
-        f"{LINE}",
-        f"\n{direction} <b>{symbol}</b>  {currency}{price:,.2f}  "
-        f"<b>{arrow} {change_pct:+.2f}%</b>",
-        f"Threshold crossed: &gt;{threshold:.0f}% move",
-        f"Sentiment: {s_emoji} {sentiment.get('label','')}{conf_note}",
+        f"⚡ <b>SMART PRICE ALERT</b>",
+        f"📅 <i>{now}</i>",
+        DIVIDER,
+        f"\n{dir_emoji}: <b>{sym_clean}</b> crossed {threshold:.1f}% move threshold",
+        f"• <b>Current Price:</b> {currency}{price:,.2f}",
+        f"• <b>Intraday Change:</b> <code>{arrow} {change_pct:+.2f}%</code>",
+        f"• <b>Verified Sentiment:</b> {s_emoji} {s_label}",
     ]
 
     if ai_reason:
-        lines.append(f"\n🤖 <b>AI Analysis:</b>\n<i>{ai_reason}</i>")
+        lines.append(f"\n🤖 <b>AI Catalyst Breakdown:</b>\n<i>{ai_reason}</i>")
 
-    lines.append(f"\n{LINE}")
+    lines.append(f"\n{DIVIDER}")
     return "\n".join(lines)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4. FII/DII Flows Card (4:00 PM)
+# 4. FII / DII Institutional Flows (4:00 PM)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_fii_dii_card(data: dict, ai_comment: str = "") -> str:
-    now = _now_ist("%a %d %b")
-    lines = [
-        f"{LINE}",
-        f"🏦 <b>FII / DII FLOWS</b>  |  {now}",
-        f"{LINE}",
-    ]
-
+    now = _now_ist("%a, %d %b %Y")
     fii = data.get("fii_net", 0)
     dii = data.get("dii_net", 0)
     net = data.get("net_total", 0)
     sign = lambda v: "+" if v >= 0 else ""
 
-    lines += [
-        f"\n  <b>FII</b>  {sign(fii)}₹{abs(fii):,.0f} Cr  —  {data.get('fii_label','')}",
-        f"  <b>DII</b>  {sign(dii)}₹{abs(dii):,.0f} Cr  —  {data.get('dii_label','')}",
-        f"  <b>Net</b>  {sign(net)}₹{abs(net):,.0f} Cr",
+    lines = [
+        f"🏦 <b>FII / DII INSTITUTIONAL FLOWS</b>",
+        f"📅 <i>NSE India Cash Market • {now}</i>",
+        DIVIDER,
+        f"\n• <b>FII Net:</b> <code>{sign(fii)}₹{abs(fii):,.0f} Cr</code> ({data.get('fii_label','')})",
+        f"• <b>DII Net:</b> <code>{sign(dii)}₹{abs(dii):,.0f} Cr</code> ({data.get('dii_label','')})",
+        f"• <b>Net Institutional Impact:</b> <code>{sign(net)}₹{abs(net):,.0f} Cr</code>",
     ]
 
     if ai_comment:
-        lines.append(f"\n🤖 <i>{ai_comment}</i>")
+        lines.append(f"\n🤖 <b>Market Implication:</b>\n<i>{ai_comment}</i>")
 
-    lines.append(f"\n{LINE}")
+    lines.append(f"\n{DIVIDER}")
     return "\n".join(lines)
 
 
@@ -241,55 +222,48 @@ def build_fii_dii_card(data: dict, ai_comment: str = "") -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_evening_card(
-    indices:     dict,
-    crypto:      list[dict],
+    indices: dict,
+    crypto: list[dict],
     poly_markets: list[dict],
-    ai_summary:  str,
+    ai_summary: str,
 ) -> str:
-    now = _now_ist("%a, %d %b %Y")
+    now = _now_ist("%a, %d %b %Y • 8:00 PM IST")
     lines = [
-        f"{LINE}",
-        f"🌆 <b>EVENING WRAP</b>  |  {now}",
-        f"{LINE}",
+        f"🌆 <b>EVENING GLOBAL WRAP</b>",
+        f"📅 <i>{now}</i>",
+        DIVIDER,
+        "\n🇮🇳 <b>India Market Closing</b>",
     ]
 
-    # India Close
-    lines.append("\n🇮🇳 <b>INDIA CLOSE</b>")
     for label in ("Nifty 50", "Sensex"):
         d = indices.get(label)
-        lines.append(_price_line(label, d))
+        if d:
+            lines.append(f"• <b>{label}:</b> ₹{d['price']:,.2f} <code>{_fmt_pct(d['change_pct'], d['arrow'])}</code>")
 
-    # US Live
-    lines.append("\n🇺🇸 <b>US MARKETS</b> <i>(live)</i>")
-    for label in ("S&P Fut", "Dow Fut", "Nasdaq Fut"):
-        d = indices.get(label)
-        display_label = label.replace(" Fut", "")
-        lines.append(_price_line(display_label, d, "$"))
+    lines.append("\n🇺🇸 <b>Wall Street & Global (Live)</b>")
+    for key, name in [("S&P Fut", "S&P 500"), ("Nasdaq Fut", "Nasdaq"), ("Dow Fut", "Dow Jones")]:
+        d = indices.get(key)
+        if d:
+            lines.append(f"• <b>{name}:</b> ${d['price']:,.2f} <code>{_fmt_pct(d['change_pct'], d['arrow'])}</code>")
 
-    # Crypto EOD
     if crypto:
-        lines.append("\n🪙 <b>CRYPTO EOD</b>")
-        for c in crypto[:3]:
+        lines.append("\n🪙 <b>Crypto EOD Status</b>")
+        for c in crypto[:2]:
             inr = c.get("inr_fmt", f"₹{c['inr']:,.0f}")
-            lines.append(
-                f"  <b>{c['symbol']:<6}</b>  ${c['usd']:,.0f}  |  {inr}  "
-                f"<i>{_pct_str(c['change_pct'], c['arrow'])}</i>"
-            )
+            lines.append(f"• <b>{c['symbol']}:</b> {inr} (${c['usd']:,.0f}) <code>{_fmt_pct(c['change_pct'], c['arrow'])}</code>")
 
-    # Polymarket
     if poly_markets:
-        lines.append("\n🎲 <b>POLYMARKET ODDS</b>")
-        for m in poly_markets[:5]:
-            q   = m["question"][:55]
-            pct = m["yes_pct"]
-            bar = "🟢" if pct >= 60 else ("🔴" if pct <= 40 else "🟡")
-            lines.append(f"  {bar} {q}\n       <i>{pct:.0f}% YES</i>")
+        lines.append("\n🎲 <b>Polymarket Probabilities</b>")
+        for m in poly_markets[:3]:
+            q = m["question"]
+            if len(q) > 65:
+                q = q[:62] + "..."
+            lines.append(f"• {q}\n  <i>Odds: <b>{m['yes_pct']:.0f}% YES</b></i>")
 
-    # AI EOD Summary
     if ai_summary:
-        lines.append(f"\n🤖 <b>AI EOD SUMMARY</b>\n<i>{ai_summary}</i>")
+        lines.append(f"\n🤖 <b>AI Day-End Synthesis:</b>\n{ai_summary}")
 
-    lines.append(f"\n{LINE}")
+    lines.append(f"\n{DIVIDER}")
     return "\n".join(lines)
 
 
@@ -300,77 +274,63 @@ def build_evening_card(
 def build_macro_reminder_card(events: list[dict]) -> str:
     now = _now_ist("%a, %d %b")
     lines = [
-        f"{LINE}",
-        f"🏛️ <b>UPCOMING MACRO EVENTS</b>  |  {now}",
-        f"{LINE}",
+        f"🏛️ <b>MACROECONOMIC RADAR</b>",
+        f"📅 <i>Upcoming Events • {now}</i>",
+        DIVIDER,
     ]
 
     for e in events:
-        lines += [
-            f"\n⚠️  <b>{e['name']}</b>",
-            f"    📅  {e.get('date','')}  |  {e.get('time_ist','')}",
-        ]
+        lines.append(f"\n⚠️ <b>{e['name']}</b>")
+        lines.append(f"• <b>Date & Time:</b> {e.get('date','')} at {e.get('time_ist','')}")
         if e.get("note"):
-            lines.append(f"    <i>{e['note']}</i>")
+            lines.append(f"• <b>Potential Impact:</b> <i>{e['note']}</i>")
 
-    lines.append(f"\n{LINE}")
+    lines.append(f"\n{DIVIDER}")
     return "\n".join(lines)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 7. Weekly Digest (Sunday 9 AM)
+# 7. Weekly Recap (Sunday 9:00 AM)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_weekly_card(
-    indices_weekly:  dict,     # {label: {"change_pct", "arrow"}}
-    stocks_weekly:   dict,     # {symbol: {"change_pct", "arrow"}}
-    crypto_weekly:   list[dict],
+    indices_weekly: dict,
+    stocks_weekly: dict,
+    crypto_weekly: list[dict],
     commodities_weekly: dict,
-    ai_review:       str,
+    ai_review: str,
 ) -> str:
-    from datetime import timedelta
-    today = datetime.now(IST)
-    week_start = (today - timedelta(days=today.weekday())).strftime("%d %b")
-    week_end   = today.strftime("%d %b")
-
     lines = [
-        f"{LINE}",
-        f"📅 <b>WEEKLY RECAP</b>  |  Week of {week_start}–{week_end}",
-        f"{LINE}",
+        f"📅 <b>WEEKLY MARKET RECAP</b>",
+        f"📅 <i>{_now_ist('%d %b %Y')}</i>",
+        DIVIDER,
+        "\n🇮🇳 <b>Major Indices (Weekly % Change)</b>",
     ]
 
-    # Indices weekly
-    lines.append("\n🇮🇳 <b>INDICES</b> <i>(weekly)</i>")
     for label, d in indices_weekly.items():
         if d:
-            lines.append(f"  <b>{label:<12}</b>  <i>{_pct_str(d['change_pct'], d['arrow'])}</i>")
+            lines.append(f"• <b>{label}:</b> <code>{_fmt_pct(d['change_pct'], d['arrow'])}</code>")
 
-    # Your watchlist weekly
     if stocks_weekly:
-        lines.append("\n📈 <b>YOUR WATCHLIST</b> <i>(weekly change)</i>")
-        sorted_stocks = sorted(stocks_weekly.items(), key=lambda x: (x[1] or {}).get("change_pct", 0), reverse=True)
-        for sym, d in sorted_stocks:
+        lines.append("\n📈 <b>Watchlist Performance This Week</b>")
+        sorted_stocks = sorted(
+            stocks_weekly.items(),
+            key=lambda x: (x[1] or {}).get("change_pct", 0),
+            reverse=True,
+        )
+        for sym, d in sorted_stocks[:6]:
             if d:
-                flag = "  🔴" if d["change_pct"] < -3 else ("  🔥" if d["change_pct"] > 4 else "")
-                lines.append(f"  <b>{sym:<16}</b>  <i>{_pct_str(d['change_pct'], d['arrow'])}</i>{flag}")
+                clean_sym = sym.replace(".NS", "").replace(".BO", "")
+                lines.append(f"• <b>{clean_sym}:</b> <code>{_fmt_pct(d['change_pct'], d['arrow'])}</code>")
 
-    # Commodities weekly
     if commodities_weekly:
-        lines.append("\n🥇 <b>COMMODITIES</b> <i>(weekly)</i>")
+        lines.append("\n🥇 <b>Commodities This Week</b>")
         for label, d in commodities_weekly.items():
             if d:
-                lines.append(f"  <b>{label:<8}</b>  <i>{_pct_str(d['change_pct'], d['arrow'])}</i>")
+                lines.append(f"• <b>{label}:</b> <code>{_fmt_pct(d['change_pct'], d['arrow'])}</code>")
 
-    # Crypto weekly
-    if crypto_weekly:
-        lines.append("\n🪙 <b>CRYPTO</b> <i>(weekly)</i>")
-        for c in crypto_weekly[:3]:
-            flag = "  🔥" if c["change_pct"] > 8 else ""
-            lines.append(f"  <b>{c['symbol']:<6}</b>  <i>{_pct_str(c['change_pct'], c['arrow'])}</i>{flag}")
-
-    # AI Review
     if ai_review:
-        lines.append(f"\n🤖 <b>AI WEEK IN REVIEW</b>\n<i>{ai_review}</i>")
+        lines.append(f"\n🤖 <b>AI Strategic Outlook for Next Week:</b>\n{ai_review}")
 
-    lines.append(f"\n{LINE}")
+    lines.append(f"\n{DIVIDER}")
     return "\n".join(lines)

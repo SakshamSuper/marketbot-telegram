@@ -14,23 +14,24 @@ logger = logging.getLogger(__name__)
 def summarise_news(articles: list[dict]) -> str:
     """
     Takes a list of article dicts [{"source": str, "title": str}, ...]
-    Returns a 3-line plain-text AI summary tailored for an Indian investor.
-    Falls back to a bullet list if Gemini fails.
+    Returns a crisp AI summary tailored for an Indian retail & tech investor.
     """
     if not articles:
-        return "No news available at this time."
+        return "• Global and domestic cues remain steady with no critical breaking alerts."
 
     headlines_text = "\n".join(
-        f"- [{a.get('source', 'Unknown')}] {a.get('title', '')}"
-        for a in articles[:15]  # cap at 15 to stay within token budget
+        f"- [{a.get('source', 'News')}] {a.get('title', '')}"
+        for a in articles[:14]
     )
 
     prompt = (
-        "You are a financial analyst briefing an Indian retail investor.\n"
-        "Summarise the following news headlines in EXACTLY 3 concise sentences.\n"
-        "Focus on: market impact, key themes, and what to watch.\n"
-        "Do NOT use bullet points. Write as flowing sentences.\n"
-        "Keep it under 80 words total.\n\n"
+        "You are an elite market intelligence analyst for an Indian investor tracking apps "
+        "like Groww, INDmoney, Moneycontrol, and ET Markets.\n"
+        "Synthesize the following live headlines into 3 crisp, high-impact bullet points:\n"
+        "1. Domestic Market & Earnings/SEBI action\n"
+        "2. Global/Macro (US Fed, Crude Oil, Dollar, Yields)\n"
+        "3. Actionable takeaway for Indian stocks/sectors\n"
+        "Start each line with '• '. Keep total length under 75 words.\n\n"
         f"Headlines:\n{headlines_text}"
     )
 
@@ -38,11 +39,10 @@ def summarise_news(articles: list[dict]) -> str:
 
     if not summary:
         logger.warning("Gemini summariser returned empty — using fallback")
-        # Fallback: top 3 headlines as plain text
-        fallback_lines = [f"• {a.get('title', '')}" for a in articles[:3]]
+        fallback_lines = [f"• [{a.get('source','')}] {a.get('title', '')}" for a in articles[:3]]
         return "\n".join(fallback_lines)
 
-    return summary
+    return summary.strip()
 
 
 def market_mood(

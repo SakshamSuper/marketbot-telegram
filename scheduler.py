@@ -267,6 +267,20 @@ async def job_weekly_digest(context) -> None:
     await _send(context, card)
 
 
+async def job_keep_alive(context) -> None:
+    """Ping health endpoint every 9 minutes so Render free tier never sleeps."""
+    import urllib.request
+    try:
+        req = urllib.request.Request(
+            "https://marketbot-telegram.onrender.com/health",
+            headers={"User-Agent": "MarketBot-KeepAlive/1.0"},
+        )
+        urllib.request.urlopen(req, timeout=10)
+        logger.debug("Keep-alive ping sent to Render")
+    except Exception as exc:
+        logger.debug("Keep-alive ping: %s", exc)
+
+
 # ── Register all jobs ─────────────────────────────────────────────────────────
 
 def register_jobs(app: Application) -> None:
@@ -291,6 +305,9 @@ def register_jobs(app: Application) -> None:
 
     # Smart alert polling — every N seconds, all week
     jq.run_repeating(job_smart_alerts, interval=config.ALERT_POLL_INTERVAL, first=30, name="smart_alerts")
+
+    # Keep-alive pinger — every 9 minutes, keeps Render container awake 24/7
+    jq.run_repeating(job_keep_alive, interval=540, first=60, name="keep_alive")
 
     logger.info(
         "Jobs registered: premarket=%02d:%02d, open=%02d:%02d, fii=16:00, evening=%02d:%02d, alerts=every %ds (all IST)",

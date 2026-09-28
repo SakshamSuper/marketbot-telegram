@@ -14,7 +14,7 @@ CHAT_ID: str = os.environ["CHAT_ID"]
 
 # ── Gemini AI ─────────────────────────────────────────────────────────────────
 GEMINI_API_KEY: str = os.environ["GEMINI_API_KEY"]
-GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 
 # ── Webhook Security ──────────────────────────────────────────────────────────
 WEBHOOK_SECRET: str = os.getenv("WEBHOOK_SECRET", "changeme")
