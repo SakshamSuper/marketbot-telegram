@@ -31,9 +31,10 @@ def init(bot, chat_id: str) -> None:
     _chat_id_ref = chat_id
 
 
-@flask_app.route("/health", methods=["GET"])
+@flask_app.route("/", methods=["GET", "HEAD"])
+@flask_app.route("/health", methods=["GET", "HEAD"])
 def health():
-    """Health check for Railway uptime monitoring."""
+    """Health check for Render/Railway uptime monitoring."""
     return jsonify({"status": "ok", "bot": "MarketBot"}), 200
 
 
