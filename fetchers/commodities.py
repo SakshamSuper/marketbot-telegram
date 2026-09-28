@@ -1,13 +1,14 @@
 """
 fetchers/commodities.py
 ────────────────────────
-Fetches Gold, Silver, and Crude Oil via yfinance with history() fallback.
+Fetches Gold, Silver, and Crude Oil via direct Yahoo chart API with yfinance fallback.
 Returns INR-converted prices for Gold and Silver.
 """
 
 import logging
 import yfinance as yf
 from fetchers.currency import get_usd_inr
+from fetchers.yahoo_direct import fetch_chart_data
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ _COMMODITIES = {
 }
 
 _BOUNDS = {
-    "GC=F": (1_000, 4_000),
+    "GC=F": (1_000, 5_000),
     "SI=F": (10,    200),
     "CL=F": (20,    200),
 }
@@ -28,32 +29,27 @@ _TROY_OZ_TO_10G = 0.3215  # 10g / 31.1035g per troy oz
 
 def _fetch_commodity(label: str, ticker: str, unit: str) -> dict | None:
     try:
-        t     = yf.Ticker(ticker)
         price = None
-        prev  = None
+        prev = None
 
-        # Attempt 1: fast_info
-        try:
-            info  = t.fast_info
-            price = getattr(info, "last_price", None)
-            prev  = getattr(info, "previous_close", None)
-            if price is not None and (price != price or price <= 0):
-                price = None
-        except Exception:
-            price = None
+        chart = fetch_chart_data(ticker)
+        if chart:
+            price = chart["price"]
+            prev = chart["prev_close"]
 
-        # Attempt 2: history()
         if price is None or price <= 0:
-            hist = t.history(period="5d", interval="1d")
-            if hist.empty:
-                logger.warning("history() empty for %s (%s)", label, ticker)
-                return None
-            price = float(hist["Close"].iloc[-1])
-            prev  = float(hist["Close"].iloc[-2]) if len(hist) >= 2 else price
+            t = yf.Ticker(ticker)
+            try:
+                hist = t.history(period="5d", interval="1d", actions=False)
+                if not hist.empty:
+                    price = float(hist["Close"].iloc[-1])
+                    prev = float(hist["Close"].iloc[-2]) if len(hist) >= 2 else price
+            except Exception:
+                pass
 
         lo, hi = _BOUNDS.get(ticker, (0, 1e9))
-        if not (lo <= price <= hi):
-            logger.warning("Commodity %s price %.2f out of bounds", label, price)
+        if price is None or not (lo <= price <= hi):
+            logger.warning("Commodity %s price %s out of bounds", label, price)
             return None
 
         prev = prev or price

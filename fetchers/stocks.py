@@ -2,54 +2,47 @@
 fetchers/stocks.py
 ───────────────────
 Fetches live prices for Indian (NSE/BSE) and US stocks.
-Uses history() as primary method with fast_info fast-path attempt.
-Validates data before returning — never sends NaN or zero to Telegram.
+Uses direct Yahoo chart API first, with yfinance as secondary fallback.
 """
 
 import logging
 import yfinance as yf
+from fetchers.yahoo_direct import fetch_chart_data
 
 logger = logging.getLogger(__name__)
 
 
 def _fetch_ticker(symbol: str) -> dict | None:
-    """Fetch a single stock with fast_info → history() fallback."""
     try:
-        t     = yf.Ticker(symbol)
         price = None
-        prev  = None
+        prev = None
 
-        # ── Attempt 1: fast_info
-        try:
-            info  = t.fast_info
-            price = getattr(info, "last_price", None)
-            prev  = getattr(info, "previous_close", None)
-            if price is not None and (price != price or price <= 0):
-                price = None
-        except Exception as e:
-            logger.debug("fast_info failed for %s: %s", symbol, e)
-            price = None
+        # ── Primary Attempt: Direct Yahoo API
+        chart = fetch_chart_data(symbol)
+        if chart:
+            price = chart["price"]
+            prev = chart["prev_close"]
 
-        # ── Attempt 2: history()
+        # ── Secondary Attempt: yfinance
         if price is None or price <= 0:
-            hist = t.history(period="5d", interval="1d")
-            if hist.empty:
-                logger.warning("history() returned empty for %s", symbol)
-                return None
-            price = float(hist["Close"].iloc[-1])
-            prev  = float(hist["Close"].iloc[-2]) if len(hist) >= 2 else price
+            t = yf.Ticker(symbol)
+            try:
+                hist = t.history(period="5d", interval="1d", actions=False)
+                if not hist.empty:
+                    price = float(hist["Close"].iloc[-1])
+                    prev = float(hist["Close"].iloc[-2]) if len(hist) >= 2 else price
+            except Exception:
+                pass
 
-        # Final validation
         if price is None or price != price or price <= 0:
             logger.warning("Invalid price for %s: %s", symbol, price)
             return None
 
-        prev  = prev or price
-        change     = price - prev
+        prev = prev or price
+        change = price - prev
         change_pct = (change / prev * 100) if prev else 0.0
 
-        # Reject implausible intra-day swings (>25% likely bad data)
-        if abs(change_pct) > 25:
+        if abs(change_pct) > 35:
             logger.warning("Suspicious swing for %s: %.2f%% — skipping", symbol, change_pct)
             return None
 
@@ -70,10 +63,8 @@ def _fetch_ticker(symbol: str) -> dict | None:
 
 
 def fetch_stocks(symbols: list[str]) -> dict[str, dict | None]:
-    """Fetch multiple stocks. Returns dict keyed by symbol."""
     return {sym: _fetch_ticker(sym) for sym in symbols}
 
 
 def fetch_one(symbol: str) -> dict | None:
-    """Public single-stock fetch (used by /price command)."""
     return _fetch_ticker(symbol.upper())

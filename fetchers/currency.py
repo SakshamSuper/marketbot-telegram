@@ -1,13 +1,13 @@
 """
 fetchers/currency.py
 ─────────────────────
-Fetches live currency exchange rates via yfinance.
-Uses history() fallback — more reliable than fast_info for FX pairs.
+Fetches live currency exchange rates via direct Yahoo chart API with yfinance fallback.
 """
 
 import logging
 import yfinance as yf
 import config
+from fetchers.yahoo_direct import fetch_chart_data
 
 logger = logging.getLogger(__name__)
 
@@ -20,33 +20,27 @@ _BOUNDS = {
 
 def _fetch_rate(pair_label: str, ticker: str) -> dict | None:
     try:
-        t    = yf.Ticker(ticker)
         rate = None
         prev = None
 
-        # Attempt 1: fast_info
-        try:
-            info = t.fast_info
-            rate = getattr(info, "last_price", None)
-            prev = getattr(info, "previous_close", None)
-            if rate is not None and (rate != rate or rate <= 0):
-                rate = None
-        except Exception:
-            rate = None
+        chart = fetch_chart_data(ticker)
+        if chart:
+            rate = chart["price"]
+            prev = chart["prev_close"]
 
-        # Attempt 2: history()
         if rate is None or rate <= 0:
-            hist = t.history(period="5d", interval="1d")
-            if hist.empty:
-                logger.warning("history() empty for %s", pair_label)
-                return None
-            rate = float(hist["Close"].iloc[-1])
-            prev = float(hist["Close"].iloc[-2]) if len(hist) >= 2 else rate
+            t = yf.Ticker(ticker)
+            try:
+                hist = t.history(period="5d", interval="1d", actions=False)
+                if not hist.empty:
+                    rate = float(hist["Close"].iloc[-1])
+                    prev = float(hist["Close"].iloc[-2]) if len(hist) >= 2 else rate
+            except Exception:
+                pass
 
-        # Bounds check
         lo, hi = _BOUNDS.get(ticker, (0, 1e9))
-        if not (lo <= rate <= hi):
-            logger.warning("Rate %s=%.4f out of bounds [%.1f, %.1f]", ticker, rate, lo, hi)
+        if rate is None or not (lo <= rate <= hi):
+            logger.warning("Rate %s=%.4f out of bounds [%.1f, %.1f]", ticker, rate or 0, lo, hi)
             return None
 
         prev = prev or rate
@@ -69,6 +63,5 @@ def fetch_all() -> dict[str, dict | None]:
 
 
 def get_usd_inr() -> float:
-    """Convenience: return raw USD/INR rate for crypto INR conversion."""
     data = _fetch_rate("USD/INR", "USDINR=X")
-    return data["rate"] if data else 84.0
+    return data["rate"] if data else 86.5
