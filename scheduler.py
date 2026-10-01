@@ -97,15 +97,19 @@ async def job_premarket(context) -> None:
     ai_summary = summariser.summarise_news(arts[:10])
     ai_mood    = summariser.market_mood(idx, crp, headlines_only)
 
+    from fetchers import portfolio_news
+    p_news = portfolio_news.fetch_portfolio_news(max_articles=3)
+
     card = html_cards.build_premarket_card(
-        indices      = idx,
-        crypto       = crp,
-        commodities  = comms,
-        currency     = curr,
-        articles     = arts[:5],
-        ai_summary   = ai_summary,
-        ai_mood      = ai_mood,
-        macro_events = macro,
+        indices        = idx,
+        crypto         = crp,
+        commodities    = comms,
+        currency       = curr,
+        articles       = arts[:4],
+        ai_summary     = ai_summary,
+        ai_mood        = ai_mood,
+        macro_events   = macro,
+        portfolio_news = p_news,
     )
     await _send(context, card)
 

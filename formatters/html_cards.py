@@ -38,6 +38,7 @@ def build_premarket_card(
     ai_summary: str,
     ai_mood: dict,
     macro_events: list[dict],
+    portfolio_news: list[dict] = None,
 ) -> str:
     now = _now_ist("%a, %d %b %Y • 8:00 AM IST")
     lines = [
@@ -113,6 +114,17 @@ def build_premarket_card(
             if len(title) > 95:
                 title = title[:92] + "..."
             lines.append(f"{emoji} <b>[{src}]</b> {title}")
+
+    # Targeted Portfolio News
+    if portfolio_news:
+        lines.append("\n🎯 <b>Catalysts On Your Holdings</b>")
+        for a in portfolio_news[:3]:
+            ticker = a.get("ticker", "PORTFOLIO")
+            src = a.get("source", "News")
+            title = a.get("title", "")
+            if len(title) > 95:
+                title = title[:92] + "..."
+            lines.append(f"• <b>[{ticker} • {src}]:</b> {title}")
 
     lines.append(f"\n{DIVIDER}")
     return "\n".join(lines)
