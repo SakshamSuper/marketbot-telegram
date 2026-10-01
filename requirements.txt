@@ -7,3 +7,4 @@ flask==3.0.3
 feedparser==6.0.11
 pytz==2024.1
 google-genai
+openpyxl

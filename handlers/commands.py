@@ -335,6 +335,52 @@ async def cmd_week(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await _reply(update, card)
 
 
+# ── /portfolio ────────────────────────────────────────────────────────────────
+
+async def cmd_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    await _reply(update, "⏳ Fetching live valuation for your portfolio...")
+    from fetchers import portfolio
+    summary = portfolio.get_live_portfolio_summary()
+
+    if not summary:
+        await _reply(update, "❌ No holdings statement loaded. Check data/user_holdings.json.")
+        return
+
+    sign = "+" if summary["total_pnl"] >= 0 else ""
+    pnl_arrow = "▲" if summary["total_pnl"] >= 0 else "▼"
+    pnl_badge = f"<code>{pnl_arrow} {sign}₹{abs(summary['total_pnl']):,.2f} ({sign}{summary['total_pnl_pct']}%)</code>"
+
+    lines = [
+        "💼 <b>YOUR PERSONAL PORTFOLIO</b>",
+        f"👤 <i>Client: {summary.get('client_name', 'Saksham')} • {summary['holdings_count']} Holdings</i>",
+        "━━━━━━━━━━━━━━━━━━━━",
+        f"\n💰 <b>Invested Value:</b> ₹{summary['invested_value']:,.2f}",
+        f"📊 <b>Current Value:</b> ₹{summary['current_value']:,.2f}",
+        f"📈 <b>Unrealised P&L:</b> {pnl_badge}",
+    ]
+
+    if summary.get("top_gainers"):
+        lines.append("\n🟢 <b>Top Profit Contributors</b>")
+        for g in summary["top_gainers"]:
+            name = g["name"][:20]
+            lines.append(f"• <b>{name}:</b> +₹{g['pnl']:,.0f} <code>(+{g['pnl_pct']}%)</code>")
+
+    if summary.get("top_draggers"):
+        lines.append("\n🔴 <b>Major Loss Draggers</b>")
+        for d in summary["top_draggers"]:
+            name = d["name"][:20]
+            lines.append(f"• <b>{name}:</b> -₹{abs(d['pnl']):,.0f} <code>({d['pnl_pct']}%)</code>")
+
+    lines.append("\n⚖️ <b>Asset Allocation & Sector Notes</b>")
+    lines.append("• <b>Vedanta Group:</b> ~45% (High cyclical & metal exposure)")
+    lines.append("• <b>Silver ETFs:</b> ~28% (Nippon, Tata, HDFC Silver)")
+    lines.append("• <b>Banking & Capital:</b> ~16% (SBI, BSE, Axis, HDFC)")
+    lines.append("• <b>Defence & Drones:</b> ~8% (Drone Destn, BEL, Mazdock)")
+
+    lines.append("\n━━━━━━━━━━━━━━━━━━━━")
+    await _reply(update, "\n".join(lines))
+
+
 # ── Register all handlers ─────────────────────────────────────────────────────
 
 def register(app) -> None:
@@ -353,6 +399,8 @@ def register(app) -> None:
         "alerts":      cmd_alerts,
         "remind":      cmd_remind,
         "week":        cmd_week,
+        "portfolio":   cmd_portfolio,
+        "holdings":    cmd_portfolio,
     }
     for command, handler in mapping.items():
         app.add_handler(CommandHandler(command, handler))
